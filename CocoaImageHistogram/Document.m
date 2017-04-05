@@ -12,13 +12,16 @@
 
 @end
 
+#define kRedChannel     0
+#define kGreenChannel   1
+#define kBlueChannel    2
+
 @implementation Document
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        for (unsigned i = 0; i <= 255; i++)
-            _histogram[i] = 0;
+        [self clearHistogram];
     }
     return self;
 }
@@ -29,15 +32,22 @@
 
 
 - (NSString *)windowNibName {
-    // Override returning the nib file name of the document
-    // If you need to use a subclass of NSWindowController or if your document supports multiple NSWindowControllers, you should remove this method and override -makeWindowControllers instead.
+    // Override returning the nib file name of the document If you
+    // need to use a subclass of NSWindowController or if your
+    // document supports multiple NSWindowControllers, you should
+    // remove this method and override -makeWindowControllers instead.
     return @"Document";
 }
 
 
 - (NSData *)dataOfType:(NSString *)typeName error:(NSError **)outError {
-    // Insert code here to write your document to data of the specified type. If outError != NULL, ensure that you create and set an appropriate error when returning nil.
-    // You can also choose to override -fileWrapperOfType:error:, -writeToURL:ofType:error:, or -writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.
+    // Insert code here to write your document to data of the
+    // specified type. If outError != NULL, ensure that you create and
+    // set an appropriate error when returning nil.  You can also
+    // choose to override -fileWrapperOfType:error:,
+    // -writeToURL:ofType:error:, or
+    // -writeToURL:ofType:forSaveOperation:originalContentsURL:error:
+    // instead.
     [NSException raise:@"UnimplementedMethod" format:@"%@ is unimplemented", NSStringFromSelector(_cmd)];
     return nil;
 }
@@ -59,11 +69,28 @@
     if (!_image)
         return;
 
+    // Display and calculate
     [_imageView setImage:_image];
     [self updateImageData];
 
+    // Dump histogram table in a format suitable for R plotting
+
+    /*
+     R Script:
+
+        p <- read.table("hist.dat", h=T)
+        plot(p$freq.red, type='l', col=1); lines(p$freq.green, col=2); lines(p$freq.blue, col=3)
+     */
+
+    printf("val freq.red freq.green freq.blue\n");
     for (unsigned i = 0; i <= 255; i++)
-        printf("%u %u\n", i, _histogram[i]);
+    {
+        printf("%u %u %u %u\n",
+               i,
+               _histogram[kRedChannel][i],
+               _histogram[kGreenChannel][i],
+               _histogram[kBlueChannel][i]);
+    }
 }
 
 - (void)updateImageData {
@@ -97,8 +124,6 @@
     [NSGraphicsContext setCurrentContext:gctx];
     [_image drawInRect:imageRect];
 
-    // Get a pointer to the raw image data
-
     // Calculate the histogram
 
     [self computeHistogramFromBitmap:ctx];
@@ -110,23 +135,42 @@
     CGColorSpaceRelease(colorSpace);
 }
 
+- (void)clearHistogram {
+
+    for (unsigned i = 0; i <= 255; i++)
+    {
+        _histogram[kRedChannel][i] = 0;
+        _histogram[kGreenChannel][i] = 0;
+        _histogram[kBlueChannel][i] = 0;
+    }
+}
+
 - (void)computeHistogramFromBitmap:(CGContextRef)bitmap {
+
+    // NB: Assumes RGBA 8bpp
 
     size_t width = CGBitmapContextGetWidth(bitmap);
     size_t height = CGBitmapContextGetHeight(bitmap);
 
-    // Assume ARGB 8bpp
-    uint32_t* imageBuffer = (uint32_t*)CGBitmapContextGetData(bitmap);
+    uint32_t* pixel = (uint32_t*)CGBitmapContextGetData(bitmap);
 
-    uint32_t* pixel = imageBuffer;
     for (unsigned y = 0; y < height; y++)
     {
         for (unsigned x = 0; x < width; x++)
         {
-            uint32_t abgr = *pixel;
-            uint8_t red   = (abgr & 0x000000ff) >> 0;
-            uint8_t green = (abgr & 0x0000ff00) >> 8;
-            _histogram[red]++;
+            uint32_t rgba = *pixel;
+
+            // Extract colour components
+            uint8_t red   = (rgba & 0x000000ff) >> 0;
+            uint8_t green = (rgba & 0x0000ff00) >> 8;
+            uint8_t blue  = (rgba & 0x00ff0000) >> 16;
+
+            // Accumulate each colour
+            _histogram[kRedChannel][red]++;
+            _histogram[kGreenChannel][green]++;
+            _histogram[kBlueChannel][blue]++;
+
+            // Next pixel!
             pixel++;
         }
     }

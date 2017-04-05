@@ -12,7 +12,7 @@
 {
     NSImage*                _image;
     IBOutlet NSImageView*   _imageView;
-    unsigned                _histogram[256];
+    unsigned                _histogram[3][256];
 }
 
 @property (copy) NSImage* image;
@@ -20,6 +20,7 @@
 - (void)windowControllerDidLoadNib:(NSWindowController *)windowController;
 
 - (void)updateImageData;
+- (void)clearHistogram;
 - (void)computeHistogramFromBitmap:(CGContextRef)bitmap;
 
 @end
