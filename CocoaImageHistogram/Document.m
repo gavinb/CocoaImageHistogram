@@ -17,7 +17,8 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Add your subclass-specific initialization here.
+        for (unsigned i = 0; i <= 255; i++)
+            _histogram[i] = 0;
     }
     return self;
 }
@@ -41,14 +42,94 @@
     return nil;
 }
 
+- (BOOL)readFromURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)outError {
+    _image = [[NSImage alloc] initWithContentsOfURL:url];
+    if (!_image) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain code:unimpErr userInfo:NULL];
+        }
+        return NO;
+    }
 
-- (BOOL)readFromData:(NSData *)data ofType:(NSString *)typeName error:(NSError **)outError {
-    // Insert code here to read your document from the given data of the specified type. If outError != NULL, ensure that you create and set an appropriate error when returning NO.
-    // You can also choose to override -readFromFileWrapper:ofType:error: or -readFromURL:ofType:error: instead.
-    // If you override either of these, you should also override -isEntireFileLoaded to return NO if the contents are lazily loaded.
-    [NSException raise:@"UnimplementedMethod" format:@"%@ is unimplemented", NSStringFromSelector(_cmd)];
     return YES;
 }
 
+- (void)windowControllerDidLoadNib:(NSWindowController *)windowController {
+
+    if (!_image)
+        return;
+
+    [_imageView setImage:_image];
+    [self updateImageData];
+
+    for (unsigned i = 0; i <= 255; i++)
+        printf("%u %u\n", i, _histogram[i]);
+}
+
+- (void)updateImageData {
+
+    if (!_image)
+        return;
+
+    // Dimensions - source image determines context size
+
+    NSSize imageSize = _image.size;
+    NSRect imageRect = NSMakeRect(0, 0, imageSize.width, imageSize.height);
+
+    // Create a context to hold the image data
+
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
+
+    CGContextRef ctx = CGBitmapContextCreate(NULL,
+                                             imageSize.width,
+                                             imageSize.height,
+                                             8,
+                                             0,
+                                             colorSpace,
+                                             kCGImageAlphaPremultipliedLast);
+
+    // Wrap graphics context
+
+    NSGraphicsContext* gctx = [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
+
+    // Make our bitmap context current and render the NSImage into it
+
+    [NSGraphicsContext setCurrentContext:gctx];
+    [_image drawInRect:imageRect];
+
+    // Get a pointer to the raw image data
+
+    // Calculate the histogram
+
+    [self computeHistogramFromBitmap:ctx];
+                        
+    // Clean up
+
+    [NSGraphicsContext setCurrentContext:nil];
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(colorSpace);
+}
+
+- (void)computeHistogramFromBitmap:(CGContextRef)bitmap {
+
+    size_t width = CGBitmapContextGetWidth(bitmap);
+    size_t height = CGBitmapContextGetHeight(bitmap);
+
+    // Assume ARGB 8bpp
+    uint32_t* imageBuffer = (uint32_t*)CGBitmapContextGetData(bitmap);
+
+    uint32_t* pixel = imageBuffer;
+    for (unsigned y = 0; y < height; y++)
+    {
+        for (unsigned x = 0; x < width; x++)
+        {
+            uint32_t abgr = *pixel;
+            uint8_t red   = (abgr & 0x000000ff) >> 0;
+            uint8_t green = (abgr & 0x0000ff00) >> 8;
+            _histogram[red]++;
+            pixel++;
+        }
+    }
+}
 
 @end

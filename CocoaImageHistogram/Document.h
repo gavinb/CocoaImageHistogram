@@ -9,7 +9,17 @@
 #import <Cocoa/Cocoa.h>
 
 @interface Document : NSDocument
+{
+    NSImage*                _image;
+    IBOutlet NSImageView*   _imageView;
+    unsigned                _histogram[256];
+}
 
+@property (copy) NSImage* image;
+
+- (void)windowControllerDidLoadNib:(NSWindowController *)windowController;
+
+- (void)updateImageData;
+- (void)computeHistogramFromBitmap:(CGContextRef)bitmap;
 
 @end
-
